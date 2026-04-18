@@ -43,6 +43,7 @@ desktop.ini
 # Node / Frontend 
 # ========================
 node_modules/
+**/node_modules/
 dist/
 build/
 npm-debug.log*
