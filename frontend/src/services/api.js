@@ -9,6 +9,15 @@ import { mockTickets } from '../mock/tickets';
 import { mockUsers, mockTechnicians } from '../mock/users';
 import { mockNotifications } from '../mock/notifications';
 
+api.interceptors.request.use((config) => {
+  const token = localStorage.getItem('token');
+  if (token) {
+    config.headers = config.headers || {};
+    config.headers.Authorization = `Bearer ${token}`;
+  }
+  return config;
+});
+
 // ── localStorage Persistence ──────────────────────────────
 function loadStoredBookings() {
   try {
@@ -393,8 +402,13 @@ export const bookingService = {
 // ── Notification Service ─────────────────────────────────
 export const notificationService = {
   getByRole: async (role) => {
-    try { return (await api.get('/api/notifications', { params: { role } })).data; }
-    catch { return mockNotifications.filter(n => n.role === role); }
+    try {
+      const data = (await api.get('/api/notifications', { params: { role } })).data;
+      return Array.isArray(data) ? data : [];
+    } catch (error) {
+      console.warn('Could not load notifications:', error?.message || error);
+      return mockNotifications.filter(n => n.role === role);
+    }
   },
   markAsRead: async (id) => {
     try { await api.patch(`/api/notifications/${id}/read`); }
@@ -411,5 +425,17 @@ export const userService = {
   getTechnicians: async () => {
     try { return (await api.get('/api/user/technicians')).data; }
     catch { return [...mockTechnicians]; }
+  },
+  getAssignableStaff: async () => {
+    try {
+      const users = (await api.get('/api/users')).data;
+      return (Array.isArray(users) ? users : []).filter((u) => {
+        const role = String(u?.role || '').toUpperCase();
+        return (role === 'TECHNICIAN' || role === 'ADMIN') && u?.active !== false;
+      });
+    } catch {
+      return [...mockTechnicians, ...mockUsers.filter(u => String(u?.role || '').toUpperCase() === 'ADMIN')]
+        .filter(u => u?.active !== false);
+    }
   },
 };
