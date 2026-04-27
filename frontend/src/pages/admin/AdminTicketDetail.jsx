@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { ticketService, commentService, timelineService } from '../../services/ticketService';
 import { userService } from '../../services/api';
 import { categoryLabels, statusLabels } from '../../mock/tickets';
@@ -24,6 +24,7 @@ const ADMIN_ACTIONS = {
 export default function AdminTicketDetail() {
   const { id } = useParams();
   const navigate = useNavigate();
+  const location = useLocation();
 
   const [ticket, setTicket]           = useState(null);
   const [comments, setComments]       = useState([]);
@@ -52,11 +53,22 @@ export default function AdminTicketDetail() {
 
   useEffect(() => { loadAll(); }, [id]);
   useEffect(() => { messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [comments.length]);
+  useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    const tab = params.get('tab');
+    if (tab === 'timeline') {
+      setActiveTab('timeline');
+      return;
+    }
+    if (tab === 'chat' || tab === 'conversation') {
+      setActiveTab('chat');
+    }
+  }, [location.search]);
 
   async function loadAll() {
     setLoading(true);
     try {
-      const techs = await userService.getTechnicians();
+      const techs = await userService.getAssignableStaff();
       setTechnicians(techs);
 
       const [t, c, tl] = await Promise.all([
@@ -73,7 +85,7 @@ export default function AdminTicketDetail() {
 
   /* ── Actions ── */
   async function handleAssign() {
-    if (!selectedTech) { toast.warning('Please select a technician'); return; }
+    if (!selectedTech) { toast.warning('Please select a staff member'); return; }
     setActionLoading(true);
     try {
       await ticketService.assign(id, selectedTech);
@@ -366,7 +378,7 @@ export default function AdminTicketDetail() {
               <div className="atd-action-list">
                 {availableActions.includes('ASSIGN') && (
                   <button className="atd-action-btn atd-action-assign" onClick={() => setShowAssign(true)}>
-                    🔧 {unassigned ? 'Assign Technician' : 'Reassign Technician'}
+                    🔧 {unassigned ? 'Assign Staff' : 'Reassign Staff'}
                   </button>
                 )}
                 {availableActions.includes('RESOLVE') && (
@@ -398,9 +410,9 @@ export default function AdminTicketDetail() {
             </div>
           )}
 
-          {/* Assigned Technician */}
+          {/* Assigned Staff */}
           <div className="glass-card atd-sidebar-card">
-            <h4 className="atd-section-label">Assigned Technician</h4>
+            <h4 className="atd-section-label">Assigned Staff</h4>
             {ticket.assignedTechnicianName ? (
               <div className="atd-tech-info">
                 <div className="atd-tech-avatar">
@@ -408,12 +420,12 @@ export default function AdminTicketDetail() {
                 </div>
                 <div>
                   <div className="atd-tech-name">{ticket.assignedTechnicianName}</div>
-                  <div className="atd-tech-role">Technician</div>
+                  <div className="atd-tech-role">Support Staff</div>
                 </div>
               </div>
             ) : (
               <div style={{ color:'var(--text-muted)', fontSize:'0.82rem' }}>
-                No technician assigned yet
+                No staff assigned yet
               </div>
             )}
           </div>
@@ -473,12 +485,12 @@ export default function AdminTicketDetail() {
         <div className="modal-overlay" onClick={() => setShowAssign(false)}>
           <div className="dispute-modal glass-card animate-in" onClick={e => e.stopPropagation()}>
             <div className="dispute-modal-header">
-              <h3>🔧 Assign Technician</h3>
+              <h3>🔧 Assign Staff</h3>
               <button className="modal-close-btn" onClick={() => setShowAssign(false)}>×</button>
             </div>
             <div className="dispute-modal-body">
               <div className="atd-tech-grid">
-                {technicians.filter(t => t.active).map(tech => (
+                {technicians.filter(t => t.active !== false).map(tech => (
                   <div
                     key={tech.id}
                     className={`atd-tech-card ${selectedTech === tech.id ? 'atd-tech-selected' : ''}`}
